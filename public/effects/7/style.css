@@ -1,0 +1,86 @@
+/* =====================================================
+   RESET
+   ===================================================== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+   width: 100%;
+   height: 100%;
+   overflow: hidden;
+   background: #0f0f0f;
+   font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* =====================================================
+   STAGE
+   ===================================================== */
+.stage {
+   position: relative;
+   width: 100vw;
+   height: 100vh;
+   overflow: hidden;
+}
+
+/* =====================================================
+   CANVAS — full viewport
+   ===================================================== */
+#js-canvas {
+   position: absolute;
+   inset: 0;
+   width: 100%;
+   height: 100%;
+   display: block;
+   cursor: crosshair;
+}
+
+/* =====================================================
+   COPY — big bold uppercase, on top of canvas
+   ===================================================== */
+.copy {
+   position: absolute;
+   inset: 0;
+   z-index: 2;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   padding: 6vw;
+   font-size: clamp(56px, 8vw, 140px);
+   font-weight: 900;
+   line-height: 0.95;
+   letter-spacing: -0.01em;
+   text-transform: uppercase;
+   text-align: center;
+   color: #fff;
+   pointer-events: none;
+   max-width: 1400px;
+   margin: 0 auto;
+   /* mix-blend-mode: difference makes the text invert
+      against whatever the brush paints behind it —
+      very satisfying when you scribble across letters. */
+   mix-blend-mode: difference;
+}
+
+/* =====================================================
+   HINT pill — bottom centre prompt
+   ===================================================== */
+.hint {
+   position: absolute;
+   bottom: 32px;
+   left: 50%;
+   transform: translateX(-50%);
+   z-index: 3;
+   padding: 10px 18px;
+   border: 1px solid rgba(255, 255, 255, 0.35);
+   border-radius: 999px;
+   font-family: 'Inter', sans-serif;
+   font-size: 12px;
+   font-weight: 500;
+   letter-spacing: 0.16em;
+   text-transform: uppercase;
+   color: #fff;
+   pointer-events: none;
+   transition: opacity 0.4s ease;
+   mix-blend-mode: difference;
+}
+
+.hint.is-hidden { opacity: 0; }

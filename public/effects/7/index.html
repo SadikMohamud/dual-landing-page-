@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <title>Rainbow Brush</title>
+
+   <link rel="preconnect" href="https://fonts.googleapis.com" />
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&display=swap" rel="stylesheet" />
+
+   <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+   <div class="stage">
+
+      <!-- Canvas catches all the drawing events -->
+      <canvas id="js-canvas"></canvas>
+
+      <!-- Hint pill — disappears once the user starts drawing -->
+      <span class="hint" id="js-hint">click &amp; drag to paint</span>
+
+      <!-- Text sits on top of the canvas; pointer-events: none
+           lets the canvas keep receiving the mousemoves. -->
+      <h1 class="copy">
+         We specialize in transforming space into complexe shapes
+      </h1>
+   </div>
+
+   <script src="script.js"></script>
+</body>
+
+</html>

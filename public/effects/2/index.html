@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <title>Split Vignette</title>
+
+   <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+   <!-- Each gallery is 120vh tall with its own background photo
+        AND its own vignette (fixed-position card that follows
+        the cursor with spring smoothing).  Because the section
+        applies clip-path: inset(0), the vignette is only visible
+        WHILE that section is on screen — when you scroll, the
+        next section's vignette takes over. -->
+
+   <section class="gallery">
+      <div class="gallery__bg">
+         <img src="./img/dyal_thak/background.jpg" alt="" />
+      </div>
+      <div class="vignette" data-vignette>
+         <img src="./img/dyal_thak/1.jpg" alt="" />
+      </div>
+   </section>
+
+   <section class="gallery">
+      <div class="gallery__bg">
+         <img src="./img/leidinger_matthias/background.jpg" alt="" />
+      </div>
+      <div class="vignette" data-vignette>
+         <img src="./img/leidinger_matthias/1.jpg" alt="" />
+      </div>
+   </section>
+
+   <section class="gallery">
+      <div class="gallery__bg">
+         <img src="./img/mark_rammers/background.jpg" alt="" />
+      </div>
+      <div class="vignette" data-vignette>
+         <img src="./img/mark_rammers/1.jpg" alt="" />
+      </div>
+   </section>
+
+   <section class="gallery">
+      <div class="gallery__bg">
+         <img src="./img/landon_speers/background.jpg" alt="" />
+      </div>
+      <div class="vignette" data-vignette>
+         <img src="./img/landon_speers/1.jpg" alt="" />
+      </div>
+   </section>
+
+   <!-- DESCRIPTION — 4 text rows, hover swaps the about image -->
+   <section class="description">
+      <div class="description__list" id="js-desc-list">
+         <p data-handle="dyal_thak"          data-i="0">Dyal Thak</p>
+         <p data-handle="leidinger_matthias" data-i="1">Leidinger Matthias</p>
+         <p data-handle="mark_rammers"       data-i="2">Mark Rammers</p>
+         <p data-handle="landon_speers"      data-i="3">Landon Speers</p>
+      </div>
+
+      <div class="vignette" data-vignette>
+         <!-- Stack all about.jpg images, fade in the active one.
+              Avoids src swap → no flash. -->
+         <img src="./img/dyal_thak/about.jpg"          data-i="0" class="is-active" alt="" />
+         <img src="./img/leidinger_matthias/about.jpg" data-i="1"                   alt="" />
+         <img src="./img/mark_rammers/about.jpg"       data-i="2"                   alt="" />
+         <img src="./img/landon_speers/about.jpg"      data-i="3"                   alt="" />
+      </div>
+   </section>
+
+   <!-- Deps -->
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+   <script src="script.js"></script>
+</body>
+
+</html>

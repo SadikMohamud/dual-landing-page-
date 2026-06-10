@@ -1,0 +1,119 @@
+/* =====================================================
+   RESET
+   ===================================================== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+   width: 100%;
+   background: #000;
+   color: #fff;
+   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+img {
+   display: block;
+   max-width: 100%;
+}
+
+p { font-family: inherit; }
+
+/* =====================================================
+   GALLERY — each 120vh section with its own vignette
+   ===================================================== */
+.gallery {
+   position: relative;
+   width: 100%;
+   height: 120vh;
+   /* clip-path: polygon equivalent of inset(0) — clips ALL
+      children to the section's bounds.  Crucial: the
+      vignette inside is `position: fixed`, but this clip
+      restricts where it's *visible* to within this section
+      as the user scrolls.  Result: when the section leaves
+      the viewport, its vignette is masked away and the
+      next section's vignette becomes visible instead. */
+   clip-path: polygon(0 0, 0 100%, 100% 100%, 100% 0);
+   overflow: hidden;
+}
+
+.gallery__bg {
+   position: relative;
+   width: 100%;
+   height: 100%;
+   /* Image stretches to fill */
+}
+
+.gallery__bg img {
+   position: absolute;
+   inset: 0;
+   width: 100%;
+   height: 100%;
+   object-fit: cover;
+}
+
+/* =====================================================
+   VIGNETTE — fixed card that tracks the cursor
+   ===================================================== */
+.vignette {
+   position: fixed;
+   top: 0;
+   left: 0;
+   width: 25vw;
+   height: 30vw;
+   border-radius: 1.5vw;
+   overflow: hidden;
+   pointer-events: none;
+   will-change: transform;
+   /* GSAP owns transform via gsap.quickTo */
+}
+
+.vignette img {
+   width: 100%;
+   height: 100%;
+   object-fit: cover;
+}
+
+/* =====================================================
+   DESCRIPTION — last section
+   ===================================================== */
+.description {
+   position: relative;
+   width: 100%;
+   height: 120vh;
+   clip-path: polygon(0 0, 0 100%, 100% 100%, 100% 0);
+   overflow: hidden;
+   background: #000;
+}
+
+.description__list {
+   position: absolute;
+   inset: 0;
+   z-index: 1;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+   gap: 0;
+}
+
+.description__list p {
+   font-size: 7vw;
+   font-weight: 400;
+   text-transform: uppercase;
+   letter-spacing: -0.02em;
+   line-height: 1.05;
+   cursor: default;
+   color: #fff;
+}
+
+/* The description's vignette stacks all 4 about images;
+   we toggle .is-active for cross-fade. */
+.description .vignette img {
+   position: absolute;
+   inset: 0;
+   opacity: 0;
+   transition: opacity 0.25s ease;
+}
+
+.description .vignette img.is-active {
+   opacity: 1;
+}

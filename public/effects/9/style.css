@@ -1,0 +1,52 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  color: #000;
+  background-color: black;
+  margin: 0;
+}
+
+.content {
+  height: 300px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.content__title {
+  font-family: "OTF® Glusp", Arial, sans-serif;
+  text-transform: uppercase;
+  z-index: 10000;
+  font-size: 4vw;
+  color: white;
+  user-select: none;
+}
+
+.content__img {
+  max-width: 200px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+@media screen and (min-width: 50em) {
+  body {
+    overflow: hidden;
+  }
+
+  .content {
+    height: 100vh;
+    overflow: hidden;
+  }
+}
