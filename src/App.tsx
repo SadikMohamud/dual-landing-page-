@@ -49,6 +49,11 @@ export default function ExcaliburLanding() {
   const [aboutOpen, setAboutOpen] = useState<boolean>(false);
   const [activeHover, setActiveHover] = useState<'none' | 'sk' | 'forge'>('none');
 
+  // --- MOBILE OPTIMIZATION STATES ---
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'grid' | 'dossier'>('grid');
+  const [forgeTab, setForgeTab] = useState<'overview' | 'schema'>('overview');
+
   // --- ADDITIONAL RICH SYSTEM STATES ---
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [activeEffectId, setActiveEffectId] = useState<string>("2");
@@ -69,6 +74,16 @@ export default function ExcaliburLanding() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef({ x: 0, time: 0 });
+
+  // Monitor screen resize for mobile design adaptation
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // --- PORTFOLIO DATA (LEFT CANVASES - MOUSE EFFECTS GRID) ---
   const effectsList: EffectData[] = [
@@ -186,26 +201,28 @@ ctx.stroke();`
   // --- HANDLE DIVIDER DRAG & SWIPE MECHANICS ---
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
-    dragStartRef.current = { x: e.clientX, time: Date.now() };
+    dragStartRef.current = { x: isMobile ? e.clientY : e.clientX, time: Date.now() };
     e.preventDefault();
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setIsDragging(true);
-    dragStartRef.current = { x: e.touches[0].clientX, time: Date.now() };
+    dragStartRef.current = { x: isMobile ? e.touches[0].clientY : e.touches[0].clientX, time: Date.now() };
   };
 
-  const handleMove = useCallback((clientX: number) => {
+  const handleMove = useCallback((clientX: number, clientY: number) => {
     if (!isDragging || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const position = ((clientX - rect.left) / rect.width) * 100;
+    const position = isMobile 
+      ? ((clientY - rect.top) / rect.height) * 100 
+      : ((clientX - rect.left) / rect.width) * 100;
     // Constrain slider between 0% and 100%
     setSplitPercentage(Math.max(0, Math.min(100, position)));
-  }, [isDragging]);
+  }, [isDragging, isMobile]);
 
   useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX);
-    const onTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientX);
+    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientX, e.touches[0].clientY);
     
     const onEnd = () => {
       if (!isDragging) return;
@@ -315,16 +332,16 @@ Best regards,`;
           ──────────────────────────────────────────────────────── */}
       
       {/* Corner Crop Marks / Crosshairs (Brutalist Swiss Print Style) */}
-      <div className="absolute top-4 left-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px] flex items-center space-x-2">
+      <div className="hidden md:flex absolute top-4 left-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px] items-center space-x-2">
         <span>+</span><span>[51.5074° N, 0.1278° W]</span>
       </div>
-      <div className="absolute top-4 right-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px] flex items-center space-x-2">
+      <div className="hidden md:flex absolute top-4 right-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px] items-center space-x-2">
         <span>[SYS_CLK: {new Date().toLocaleTimeString('en-US', {hour12: false})}]</span><span>+</span>
       </div>
-      <div className="absolute bottom-4 left-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px]">
+      <div className="hidden md:block absolute bottom-4 left-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px]">
         + EXCALIBUR.DEV // ALPHA-V4
       </div>
-      <div className="absolute bottom-4 right-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px]">
+      <div className="hidden md:block absolute bottom-4 right-4 z-50 pointer-events-none text-neutral-600 font-mono text-[9px]">
         SPLIT_RATIO: {splitPercentage.toFixed(2)}% +
       </div>
 
@@ -370,16 +387,44 @@ Best regards,`;
             LEFT SIDE: SK CANVAS WORLD (CLIP MASKED VIEWPORT)
             ======================================================== */}
         <div 
-          style={{ width: `${splitPercentage}%` }}
+          style={isMobile ? {
+            height: `${splitPercentage}%`,
+            width: '100%',
+            top: 0,
+            left: 0
+          } : {
+            width: `${splitPercentage}%`,
+            height: '100%',
+            top: 0,
+            left: 0
+          }}
           onMouseEnter={() => setActiveHover('sk')}
           onMouseLeave={() => setActiveHover('none')}
-          className="h-full absolute left-0 top-0 overflow-hidden bg-zinc-950 transition-all duration-75 ease-out z-20 border-r border-transparent"
+          className="absolute overflow-hidden bg-zinc-950 transition-all duration-75 ease-out z-20 border-r border-transparent"
         >
           {/* Keep layout width constant at 100vw to ensure masking visual effect */}
-          <div className="w-screen h-full relative flex bg-black">
+          <div className="w-screen h-full relative flex flex-col md:flex-row bg-black">
             
+            {/* Mobile Tab Bar Selector */}
+            {isMobile && (
+              <div className="flex border-b border-neutral-800 bg-black font-mono text-[10px] w-full z-30 pt-20">
+                <button 
+                  onClick={() => setActiveTab('grid')}
+                  className={`flex-1 py-3 text-center border-r border-neutral-800 uppercase font-bold tracking-wider ${activeTab === 'grid' ? 'text-brand-red bg-neutral-950' : 'text-neutral-500'}`}
+                >
+                  [ GRID INDEX ]
+                </button>
+                <button 
+                  onClick={() => setActiveTab('dossier')}
+                  className={`flex-1 py-3 text-center uppercase font-bold tracking-wider ${activeTab === 'dossier' ? 'text-brand-red bg-neutral-950' : 'text-neutral-500'}`}
+                >
+                  [ DOSSIER EFFECT_{activeEffectId} ]
+                </button>
+              </div>
+            )}
+
             {/* LEFT COLUMN: 6-SECTION GRID OF MOUSE EFFECTS */}
-            <div className="w-[50vw] h-full relative flex flex-col border-r border-neutral-900 z-10 overflow-hidden">
+            <div className={`w-full md:w-[50vw] h-full relative flex flex-col border-r border-neutral-900 z-10 overflow-hidden ${isMobile && activeTab !== 'grid' ? 'hidden' : 'flex'}`}>
               {expandedEffectId ? (
                 // Single Expanded View Mode
                 <div className="w-full h-full relative">
@@ -420,7 +465,15 @@ Best regards,`;
                             return updated;
                           });
                         }}
-                        className={`relative group overflow-hidden border-b border-r border-neutral-900/60 transition-colors flex flex-col justify-between p-3 ${isActive ? 'bg-neutral-950/80 border-neutral-700/80' : 'bg-black'}`}
+                        onClick={() => {
+                          setActiveEffectId(eff.id);
+                          setTerminalLogs(prev => {
+                            const updated = [...prev, `[SK-STUDIO] HOVER_EFFECT // ACTIVE: ${eff.title}`];
+                            if (updated.length > 18) updated.shift();
+                            return updated;
+                          });
+                        }}
+                        className={`relative group overflow-hidden border-b border-r border-neutral-900/60 transition-colors flex flex-col justify-between p-3 cursor-pointer ${isActive ? 'bg-neutral-950/80 border-neutral-700/80' : 'bg-black'}`}
                       >
                         {/* Cell Header Ticker */}
                         <div className="flex justify-between items-center font-mono text-[9px] text-neutral-500 z-10 relative">
@@ -430,24 +483,36 @@ Best regards,`;
                           </span>
                         </div>
 
-                        {/* Interactive Iframe background (pointer events only when hovered/active) */}
-                        <div className="absolute inset-x-0 bottom-0 top-6 z-0 pointer-events-auto">
-                          <iframe
-                            src={eff.url}
-                            className="w-full h-full border-none opacity-80 group-hover:opacity-100 transition-opacity"
-                            title={eff.title}
-                            scrolling="no"
-                            style={{ pointerEvents: 'auto' }}
-                          />
+                        {/* Interactive Iframe background (pointer events only when hovered/active; disabled on mobile for performance) */}
+                        <div className="absolute inset-x-0 bottom-0 top-6 z-0 pointer-events-none">
+                          {!isMobile ? (
+                            <iframe
+                              src={eff.url}
+                              className="w-full h-full border-none opacity-80 group-hover:opacity-100 transition-opacity"
+                              title={eff.title}
+                              scrolling="no"
+                              style={{ pointerEvents: 'auto' }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-neutral-950 to-neutral-900 flex items-center justify-center p-4">
+                              <span className="font-mono text-[8px] text-neutral-700 tracking-wider">
+                                [ SELECT TO INSPECT ]
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Tool buttons Overlay (Only shown on hover or when active) */}
-                        <div className="flex justify-end space-x-2 z-10 relative self-end mt-auto">
+                        {/* Tool buttons Overlay (Always shown on mobile, hover-only on desktop) */}
+                        <div className={`flex justify-end space-x-2 z-10 relative self-end mt-auto ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setActiveEffectId(eff.id);
-                              // Smoothly reveal details by sliding split percentage a bit to the right
-                              setSplitPercentage(Math.max(splitPercentage, 65));
+                              if (isMobile) {
+                                setActiveTab('dossier');
+                              } else {
+                                setSplitPercentage(Math.max(splitPercentage, 65));
+                              }
                             }}
                             className={`p-1 bg-black/85 border transition-all text-neutral-400 hover:text-white ${isActive ? 'border-brand-red' : 'border-neutral-800'}`}
                             title="Inspect Details"
@@ -455,7 +520,8 @@ Best regards,`;
                             <Info size={11} />
                           </button>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setExpandedEffectId(eff.id);
                             }}
                             className="p-1 bg-black/85 border border-neutral-800 hover:border-white transition-all text-neutral-400 hover:text-white"
@@ -472,10 +538,10 @@ Best regards,`;
             </div>
 
             {/* RIGHT COLUMN: SWISS EDITORIAL DETAIL PANEL FOR THE ACTIVE MOUSE EFFECT */}
-            <div className="w-[50vw] h-full bg-zinc-950 flex flex-col justify-between p-10 z-10 overflow-y-auto border-r border-neutral-900">
+            <div className={`w-full md:w-[50vw] h-full bg-zinc-950 flex flex-col justify-between p-6 md:p-10 z-10 overflow-y-auto border-r border-neutral-900 ${isMobile && activeTab !== 'dossier' ? 'hidden' : 'flex'}`}>
               
               {/* Detail Header */}
-              <div className="w-full pt-20 md:pt-28 flex justify-between items-baseline border-b border-neutral-900 pb-4">
+              <div className="w-full pt-4 md:pt-28 flex justify-between items-baseline border-b border-neutral-900 pb-4">
                 <span className="text-[10px] font-mono tracking-widest text-neutral-500 block">/ TECHNICAL DOSSIER // EFFECT_{activeEffectId}</span>
                 <span className="text-[10px] font-mono tracking-widest text-brand-red font-bold uppercase">
                   {effectsList.find(e => e.id === activeEffectId)?.tech.split('/')[0]}
@@ -540,10 +606,20 @@ Best regards,`;
             RIGHT SIDE: THE FORGE CANVAS WORLD
             ======================================================== */}
         <div 
-          style={{ left: `${splitPercentage}%`, width: `${100 - splitPercentage}%` }}
+          style={isMobile ? {
+            top: `${splitPercentage}%`,
+            height: `${100 - splitPercentage}%`,
+            width: '100%',
+            left: 0
+          } : {
+            left: `${splitPercentage}%`,
+            width: `${100 - splitPercentage}%`,
+            height: '100%',
+            top: 0
+          }}
           onMouseEnter={() => setActiveHover('forge')}
           onMouseLeave={() => setActiveHover('none')}
-          className="h-full absolute right-0 top-0 overflow-hidden bg-neutral-950 transition-all duration-75 ease-out z-20"
+          className="absolute overflow-hidden bg-neutral-950 transition-all duration-75 ease-out z-20"
         >
           {/* Keep layout width constant at 100vw to ensure masking visual effect */}
           <div className="w-screen h-full absolute right-0 top-0 p-6 md:p-12 flex flex-col justify-between bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-950/20 via-zinc-950 to-black forge-grid">
@@ -552,12 +628,32 @@ Best regards,`;
             <div 
               className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-screen opacity-70"
               style={{
-                background: `radial-gradient(circle 380px at ${mousePosition.x - (window.innerWidth * splitPercentage / 100)}px ${mousePosition.y}px, rgba(34, 211, 238, 0.12) 0%, rgba(168, 85, 247, 0.03) 45%, transparent 100%)`
+                background: isMobile
+                  ? `radial-gradient(circle 220px at ${mousePosition.x}px ${mousePosition.y - (window.innerHeight * splitPercentage / 100)}px, rgba(34, 211, 238, 0.12) 0%, rgba(168, 85, 247, 0.03) 45%, transparent 100%)`
+                  : `radial-gradient(circle 380px at ${mousePosition.x - (window.innerWidth * splitPercentage / 100)}px ${mousePosition.y}px, rgba(34, 211, 238, 0.12) 0%, rgba(168, 85, 247, 0.03) 45%, transparent 100%)`
               }}
             />
 
+            {/* Mobile Tab Bar Selector for The Forge */}
+            {isMobile && (
+              <div className={`flex border-b border-neutral-900 bg-neutral-950/90 font-mono text-[10px] w-full z-30 pt-4 ${splitPercentage < 15 ? 'pt-20' : 'pt-4'}`}>
+                <button 
+                  onClick={() => setForgeTab('overview')}
+                  className={`flex-1 py-3 text-center border-r border-neutral-900 uppercase font-bold tracking-wider ${forgeTab === 'overview' ? 'text-cyan-400 bg-black/40' : 'text-neutral-500'}`}
+                >
+                  [ FORGE CONSOLE ]
+                </button>
+                <button 
+                  onClick={() => setForgeTab('schema')}
+                  className={`flex-1 py-3 text-center uppercase font-bold tracking-wider ${forgeTab === 'schema' ? 'text-cyan-400 bg-black/40' : 'text-neutral-500'}`}
+                >
+                  [ MCP SCHEMA ]
+                </button>
+              </div>
+            )}
+
             {/* Top margin label spacing (Swiss Editorial grid spacer) */}
-            <div className="w-full pt-20 md:pt-28 flex justify-between items-baseline z-10 pr-4 md:pr-12">
+            <div className="hidden md:flex w-full pt-20 md:pt-28 justify-between items-baseline z-10 pr-4 md:pr-12">
               <span className="text-[10px] font-mono tracking-widest text-cyan-400 block">// AGENTIC DEVELOPMENT AGENCY</span>
               <span className="text-[10px] font-mono tracking-widest text-neutral-500 uppercase hidden sm:block">SANDBOX: EXT_CONTAINER // AGENTS: 180</span>
             </div>
@@ -566,7 +662,7 @@ Best regards,`;
             <div className="w-full h-full flex flex-col xl:flex-row items-center justify-between gap-6 z-10 my-auto pr-0 xl:pr-12">
               
               {/* Left Column (within Forge): Custom interactive MCP Node Network SVG */}
-              <div className="w-full xl:w-1/2 h-[260px] md:h-[350px] relative flex items-center justify-center bg-black/60 border border-neutral-900/80 p-4 rounded shadow-2xl overflow-hidden order-2 xl:order-1 mt-4 xl:mt-0">
+              <div className={`w-full xl:w-1/2 h-[260px] md:h-[350px] relative flex items-center justify-center bg-black/60 border border-neutral-900/80 p-4 rounded shadow-2xl overflow-hidden order-2 xl:order-1 mt-4 xl:mt-0 ${isMobile && forgeTab !== 'schema' ? 'hidden' : 'flex'}`}>
                 <div className="absolute top-2 left-2 flex items-center space-x-1.5 font-mono text-[9px] text-neutral-400">
                   <Workflow size={10} className="text-cyan-400 animate-pulse" />
                   <span>INTERACTIVE COMPILER SCHEMA</span>
@@ -676,22 +772,22 @@ Best regards,`;
               </div>
 
               {/* Right Column (within Forge): Typographic copy block + terminal simulator */}
-              <div className="w-full xl:w-1/2 max-w-xl flex flex-col items-end text-right order-1 xl:order-2">
+              <div className={`w-full xl:w-1/2 max-w-xl flex flex-col items-end text-right order-1 xl:order-2 ${isMobile && forgeTab !== 'overview' ? 'hidden' : 'flex'}`}>
                 <div className="relative">
-                  <h2 className="text-[5.5rem] md:text-[11rem] font-black tracking-tighter leading-[0.8] text-stroke-cyan select-none absolute -top-8 md:-top-16 right-0 z-0 opacity-20 font-display">
+                  <h2 className="text-6xl sm:text-[5.5rem] md:text-[11rem] font-black tracking-tighter leading-[0.8] text-stroke-cyan select-none absolute -top-8 md:-top-16 right-0 z-0 opacity-20 font-display">
                     FORGE
                   </h2>
-                  <h2 className="text-5xl md:text-[7rem] font-black tracking-tighter leading-[0.8] uppercase select-none text-neutral-100 relative z-10 font-display">
+                  <h2 className="text-4xl sm:text-5xl md:text-[7rem] font-black tracking-tighter leading-[0.8] uppercase select-none text-neutral-100 relative z-10 font-display">
                     THE FORGE
                   </h2>
                 </div>
                 
-                <p className="mt-6 text-sm font-mono tracking-wide text-cyan-400/90 max-w-md uppercase leading-relaxed text-justify">
+                <p className="mt-4 sm:mt-6 text-xs sm:text-sm font-mono tracking-wide text-cyan-400/90 max-w-md uppercase leading-relaxed text-justify">
                   Orchestrating 180+ localized sub-agents via model context protocols. Compile designs directly into production-grade systems in real-time.
                 </p>
 
                 {/* Live Console Logs Container */}
-                <div className="mt-6 w-full max-w-md bg-neutral-950 border border-cyan-950/40 p-4 font-mono text-[10px] text-cyan-400 text-left rounded shadow-inner relative overflow-hidden">
+                <div className="mt-4 sm:mt-6 w-full max-w-md bg-neutral-950 border border-cyan-950/40 p-4 font-mono text-[10px] text-cyan-400 text-left rounded shadow-inner relative overflow-hidden">
                   <div className="absolute top-1 right-2 flex items-center space-x-1 text-[8px] text-neutral-500">
                     <span className="w-1 h-1 rounded-full bg-cyan-400 animate-ping" />
                     <span>LIVE PIPELINE</span>
@@ -713,7 +809,7 @@ Best regards,`;
                   </div>
                 </div>
 
-                <div className="flex flex-wrap justify-end gap-4 mt-8">
+                <div className="flex flex-wrap justify-end gap-4 mt-6 sm:mt-8">
                   <button 
                     onClick={() => handleCanvasClick('forge')}
                     className="group flex items-center space-x-2 border border-cyan-400 bg-cyan-950/10 text-cyan-400 px-6 py-3 text-xs font-mono tracking-widest font-bold uppercase hover:bg-cyan-400 hover:text-black transition-all shadow-[0_4px_20px_rgba(34,211,238,0.1)]"
@@ -727,7 +823,7 @@ Best regards,`;
             </div>
 
             {/* Bottom Panel Metadata list */}
-            <div className="z-10 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-cyan-950/40 pt-6 mt-4 text-left pr-4 md:pr-12">
+            <div className={`z-10 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-cyan-950/40 pt-6 mt-4 text-left pr-4 md:pr-12 ${isMobile ? 'hidden' : 'grid'}`}>
               <div className="font-mono text-[10px] uppercase">
                 <span className="text-neutral-600 block text-[9px]">ENGINE SPEC</span>
                 <span className="text-neutral-300 font-bold">MCP COMPILER-V4</span>
@@ -753,10 +849,22 @@ Best regards,`;
             THE INTERACTIVE SWIPER CENTER SLIDER DIVIDER HANDLE
             ──────────────────────────────────────────────────────── */}
         <div 
-          style={{ left: `calc(${splitPercentage}% - 1px)` }}
+          style={isMobile ? {
+            top: `calc(${splitPercentage}% - 1.5px)`,
+            left: 0,
+            width: '100%',
+            height: '3px',
+            cursor: 'ns-resize'
+          } : {
+            left: `calc(${splitPercentage}% - 1.5px)`,
+            top: 0,
+            height: '100%',
+            width: '3px',
+            cursor: 'ew-resize'
+          }}
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
-          className={`absolute top-0 h-full w-[3px] bg-white z-40 cursor-ew-resize flex items-center justify-center transition-all ${isDragging ? 'bg-cyan-400 scale-x-150 shadow-[0_0_25px_rgba(34,211,238,0.8)]' : 'hover:bg-neutral-300'}`}
+          className={`absolute z-40 bg-white flex items-center justify-center transition-all ${isDragging ? 'bg-cyan-400 shadow-[0_0_25px_rgba(34,211,238,0.8)]' : 'hover:bg-neutral-300'} ${isMobile ? (isDragging ? 'scale-y-150' : '') : (isDragging ? 'scale-x-150' : '')}`}
         >
           {/* Vertical Graduated Ticking Ruler (Shows visual alignment) */}
           <div className="absolute h-full inset-y-0 -left-6 flex flex-col justify-between py-24 pointer-events-none opacity-40 select-none hidden md:flex">
@@ -778,12 +886,12 @@ Best regards,`;
           </div>
 
           {/* Grab Handle Slider controller */}
-          <div className={`w-12 h-16 bg-neutral-900 border flex flex-col justify-center items-center space-y-1.5 rounded shadow-2xl pointer-events-none transition-transform duration-150 ${isDragging ? 'scale-110 border-cyan-400' : 'border-neutral-800 hover:border-neutral-600'}`}>
-            <div className="w-[1.5px] h-4 bg-white opacity-40" />
+          <div className={`${isMobile ? 'w-16 h-8 flex-row space-x-1.5' : 'w-12 h-16 flex-col space-y-1.5'} bg-neutral-900 border flex justify-center items-center rounded shadow-2xl pointer-events-none transition-transform duration-150 ${isDragging ? 'scale-110 border-cyan-400' : 'border-neutral-800 hover:border-neutral-600'}`}>
+            <div className={`${isMobile ? 'w-4 h-[1.5px]' : 'w-[1.5px] h-4'} bg-white opacity-40`} />
             <span className="font-mono text-[7px] text-neutral-300 font-bold select-none leading-none">
               {Math.round(splitPercentage)}
             </span>
-            <div className="w-[1.5px] h-4 bg-white opacity-40" />
+            <div className={`${isMobile ? 'w-4 h-[1.5px]' : 'w-[1.5px] h-4'} bg-white opacity-40`} />
           </div>
         </div>
       </div>
@@ -791,10 +899,10 @@ Best regards,`;
       {/* ────────────────────────────────────────────────────────
           FIXED PERIMETER FOOTER UTIL BACKPLANE
           ──────────────────────────────────────────────────────── */}
-      <footer className="absolute bottom-0 left-0 w-full p-6 md:p-10 flex justify-between items-end z-50 pointer-events-none">
+      <footer className="absolute bottom-0 left-0 w-full p-4 md:p-10 flex justify-between items-end z-50 pointer-events-none">
         
         {/* Creator / Team badges */}
-        <div className="flex space-x-6 md:space-x-12 text-xs md:text-sm font-mono tracking-widest text-neutral-500 pointer-events-auto bg-black/40 backdrop-blur-sm p-3 border border-neutral-900">
+        <div className="hidden sm:flex space-x-6 md:space-x-12 text-xs md:text-sm font-mono tracking-widest text-neutral-500 pointer-events-auto bg-black/40 backdrop-blur-sm p-3 border border-neutral-900">
           <div className="flex flex-col">
             <span className="text-[9px] text-neutral-600 block">CREATIVE LAB</span>
             <span className="text-white font-bold flex items-center space-x-1">
@@ -812,10 +920,10 @@ Best regards,`;
         </div>
         
         {/* Core Quick CTA */}
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto w-full sm:w-auto flex justify-end">
           <button 
             onClick={() => setAboutOpen(true)}
-            className="group bg-white text-black font-mono text-xs md:text-sm font-black tracking-widest uppercase px-6 py-4 flex items-center space-x-2 hover:bg-black hover:text-white hover:border hover:border-white transition-all shadow-[0_4px_30px_rgba(255,255,255,0.15)]"
+            className="w-full sm:w-auto justify-center group bg-white text-black font-mono text-xs md:text-sm font-black tracking-widest uppercase px-6 py-4 flex items-center space-x-2 hover:bg-black hover:text-white hover:border hover:border-white transition-all shadow-[0_4px_30px_rgba(255,255,255,0.15)]"
           >
             <span>ESTIMATE PROJECT</span>
             <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
