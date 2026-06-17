@@ -26,3 +26,5 @@ dist-ssr
 # Temporary effects folder
 temp_effects/
 
+
+.vercel
