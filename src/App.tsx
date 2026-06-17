@@ -38,9 +38,12 @@ export default function ExcaliburLanding() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // --- CANVAS INTERACTIVE CURSOR TRAIL REFS ---
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pointerRef = useRef({ x: 0, y: 0, moved: false });
+  // --- SUBTLE INTERACTIVE CURSOR REFS & STATE ---
+  const dotRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
+  const mousePos = useRef({ x: -100, y: -100 });
+  const ringPos = useRef({ x: -100, y: -100 });
+  const [isHovered, setIsHovered] = useState<boolean>(false);
 
   // --- PORTFOLIO DATA (LEFT CANVASES) ---
   const projects: Project[] = [
@@ -118,99 +121,65 @@ Best regards,`;
     window.location.href = `mailto:snurmdev@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
-  // --- CANVAS CURSOR TRAIL ANIMATION LOOP ---
+  // --- SUBTLE LERP CURSOR ANIMATION LOOP ---
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (isMobile) return;
 
     let animationFrameId: number;
 
-    const params = {
-      pointsNumber: 45,       // Smooth and long trail
-      widthFactor: 0.35,      // Line thickness factor
-      spring: 0.4,           // Reactive tracking speed
-      friction: 0.6,         // Decay velocity
-    };
-
-    // Initialize trail history points centered on window viewport
-    const trail = Array.from({ length: params.pointsNumber }, () => ({
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-      dx: 0,
-      dy: 0,
-    }));
-
-    const handleResize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
-    
-    // Set initial size and bind window listener
-    handleResize();
-    window.addEventListener('resize', handleResize);
-
-    const update = (t: number) => {
-      const pointer = pointerRef.current;
+    const handleMouseMove = (e: MouseEvent) => {
+      mousePos.current.x = e.clientX;
+      mousePos.current.y = e.clientY;
       
-      // Gentle floating orbital path before first user interaction
-      if (!pointer.moved) {
-        pointer.x = (0.5 + 0.15 * Math.cos(0.002 * t) * Math.sin(0.005 * t)) * window.innerWidth;
-        pointer.y = (0.5 + 0.1 * Math.cos(0.005 * t) + 0.05 * Math.cos(0.01 * t)) * window.innerHeight;
+      // Instantly position core dot
+      if (dotRef.current) {
+        dotRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0) translate3d(-50%, -50%, 0)`;
       }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Solve position vectors with spring-damper equations
-      trail.forEach((p, pIdx) => {
-        const prev = pIdx === 0 ? pointer : trail[pIdx - 1];
-        const spring = pIdx === 0 ? 0.45 * params.spring : params.spring;
-        p.dx += (prev.x - p.x) * spring;
-        p.dy += (prev.y - p.y) * spring;
-        p.dx *= params.friction;
-        p.dy *= params.friction;
-        p.x += p.dx;
-        p.y += p.dy;
-      });
-
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      // Draw segmented curve paths to fade width & opacity
-      for (let i = 1; i < trail.length - 1; i++) {
-        const xcPrev = 0.5 * (trail[i - 1].x + trail[i].x);
-        const ycPrev = 0.5 * (trail[i - 1].y + trail[i].y);
-        const xcNext = 0.5 * (trail[i].x + trail[i + 1].x);
-        const ycNext = 0.5 * (trail[i].y + trail[i + 1].y);
-
-        ctx.beginPath();
-        ctx.moveTo(xcPrev, ycPrev);
-        ctx.quadraticCurveTo(trail[i].x, trail[i].y, xcNext, ycNext);
-
-        const ratio = i / (trail.length - 1);
-        const opacity = (1 - ratio) * 0.8;
-        
-        // Brand color interpolation: Cyan (34, 211, 238) to Red (255, 51, 68)
-        const r = Math.round(34 + ratio * (255 - 34));
-        const g = Math.round(211 + ratio * (51 - 211));
-        const b = Math.round(238 + ratio * (68 - 238));
-
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-        ctx.lineWidth = params.widthFactor * (params.pointsNumber - i);
-        ctx.stroke();
-      }
-
-      animationFrameId = requestAnimationFrame(update);
     };
 
-    animationFrameId = requestAnimationFrame(update);
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      
+      // Expand outer circle over interactive elements
+      if (
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.closest('button') || 
+        target.closest('a') ||
+        target.getAttribute('role') === 'button' ||
+        target.classList.contains('cursor-pointer')
+      ) {
+        setIsHovered(true);
+      } else {
+        setIsHovered(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseover', handleMouseOver);
+
+    const updateRing = () => {
+      const ease = 0.15; // Smooth lerp delay interpolation factor
+      
+      ringPos.current.x += (mousePos.current.x - ringPos.current.x) * ease;
+      ringPos.current.y += (mousePos.current.y - ringPos.current.y) * ease;
+      
+      if (ringRef.current) {
+        ringRef.current.style.transform = `translate3d(${ringPos.current.x}px, ${ringPos.current.y}px, 0) translate3d(-50%, -50%, 0)`;
+      }
+
+      animationFrameId = requestAnimationFrame(updateRing);
+    };
+
+    animationFrameId = requestAnimationFrame(updateRing);
 
     return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseover', handleMouseOver);
       cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [isMobile]);
 
   // --- CURSOR TRACKING FOR PARALLAX/LIGHT-EFFECTS ---
   const handleContainerMouseMove = (e: React.MouseEvent) => {
@@ -220,24 +189,6 @@ Best regards,`;
     const y = e.clientY - rect.top;
 
     setMousePosition({ x, y });
-
-    pointerRef.current.x = x;
-    pointerRef.current.y = y;
-    pointerRef.current.moved = true;
-  };
-
-  const handleContainerTouchMove = (e: React.TouchEvent) => {
-    if (e.targetTouches.length > 0) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.targetTouches[0].clientX - rect.left;
-      const y = e.targetTouches[0].clientY - rect.top;
-
-      setMousePosition({ x, y });
-
-      pointerRef.current.x = x;
-      pointerRef.current.y = y;
-      pointerRef.current.moved = true;
-    }
   };
 
   // Helper variables for coordinates/distances relative to center
@@ -248,8 +199,7 @@ Best regards,`;
     <div 
       ref={containerRef} 
       onMouseMove={handleContainerMouseMove}
-      onTouchMove={handleContainerTouchMove}
-      className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none swiss-grid"
+      className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none swiss-grid md:cursor-none"
     >
       
       {/* ────────────────────────────────────────────────────────
@@ -309,11 +259,25 @@ Best regards,`;
           }} 
         />
 
-        {/* Interactive Canvas Cursor Trail */}
-        <canvas 
-          ref={canvasRef} 
-          className="absolute inset-0 pointer-events-none z-30 w-full h-full" 
-        />
+        {/* Custom Subtle Interactive Cursor */}
+        {!isMobile && (
+          <>
+            <div 
+              ref={dotRef}
+              className="fixed top-0 left-0 w-1.5 h-1.5 bg-white rounded-full pointer-events-none z-50 mix-blend-difference transition-transform duration-75 ease-out"
+              style={{ transform: 'translate3d(-100px, -100px, 0) translate3d(-50%, -50%, 0)' }}
+            />
+            <div 
+              ref={ringRef}
+              className={`fixed top-0 left-0 w-7 h-7 border rounded-full pointer-events-none z-50 transition-all duration-300 ease-out mix-blend-difference ${
+                isHovered 
+                  ? 'bg-white border-white scale-[1.6]' 
+                  : 'border-white/30 bg-transparent scale-100'
+              }`}
+              style={{ transform: 'translate3d(-100px, -100px, 0) translate3d(-50%, -50%, 0)' }}
+            />
+          </>
+        )}
 
         {/* Aesthetic Grid Ticker Pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,51,68,0.02)_1px,transparent_1px)] bg-[size:100%_16px] pointer-events-none" />
