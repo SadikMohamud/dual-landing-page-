@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as THREE from 'three';
 import { 
   Menu, 
   X, 
@@ -7,6 +8,131 @@ import {
   ChevronRight, 
   Layers2
 } from 'lucide-react';
+
+const vertexShaderSource = `
+void main() {
+  gl_Position = vec4(position, 1.0);
+}
+`;
+
+const fragmentShaderSource = `
+uniform vec2 uResolution;
+uniform sampler2D uMap;
+uniform vec2 uPointer;
+uniform float uDt;
+uniform float uSpeed;
+uniform float uTime;
+
+vec4 permute(vec4 x){return mod(x*x*34.+x,289.);}
+float snoise(vec3 v){
+  const vec2 C = 1./vec2(6,3);
+  const vec4 D = vec4(0,.5,1,2);
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1. - g;
+  vec3 i1 = min( g.xyz, l.zxy );
+  vec3 i2 = max( g.xyz, l.zxy );
+  vec3 x1 = x0 - i1 + C.x;
+  vec3 x2 = x0 - i2 + C.y;
+  vec3 x3 = x0 - D.yyy;
+  i = mod(i,289.);
+  vec4 p = permute( permute( permute(
+	  i.z + vec4(0., i1.z, i2.z, 1.))
+	+ i.y + vec4(0., i1.y, i2.y, 1.))
+	+ i.x + vec4(0., i1.x, i2.x, 1.));
+  vec3 ns = .142857142857 * D.wyz - D.xzx;
+  vec4 j = p - 49. * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = floor(j - 7. * x_ ) *ns.x + ns.yyyy;
+  vec4 h = 1. - abs(x) - abs(y);
+  vec4 b0 = vec4( x.xy, y.xy );
+  vec4 b1 = vec4( x.zw, y.zw );
+  vec4 sh = -step(h, vec4(0));
+  vec4 a0 = b0.xzyw + (floor(b0)*2.+ 1.).xzyw*sh.xxyy ;
+  vec4 a1 = b1.xzyw + (floor(b1)*2.+ 1.).xzyw*sh.zzww ;
+  vec3 p0 = vec3(a0.xy,h.x);
+  vec3 p1 = vec3(a0.zw,h.y);
+  vec3 p2 = vec3(a1.xy,h.z);
+  vec3 p3 = vec3(a1.zw,h.w);
+  vec4 norm = inversesqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+  p0 *= norm.x;
+  p1 *= norm.y;
+  p2 *= norm.z;
+  p3 *= norm.w;
+  vec4 m = max(.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.);
+  return .5 + 12. * dot( m * m * m, vec4( dot(p0,x0), dot(p1,x1),dot(p2,x2), dot(p3,x3) ) );
+}
+
+vec3 snoiseVec3( vec3 x ){
+  return vec3(  snoise(vec3( x )*2.-1.),
+								snoise(vec3( x.y - 19.1 , x.z + 33.4 , x.x + 47.2 ))*2.-1.,
+								snoise(vec3( x.z + 74.2 , x.x - 124.5 , x.y + 99.4 )*2.-1.)*2.-1.
+	);
+}
+
+vec3 curlNoise( vec3 p ){
+  const float e = .1;
+  vec3 dx = vec3( e   , 0.0 , 0.0 );
+  vec3 dy = vec3( 0.0 , e   , 0.0 );
+  vec3 dz = vec3( 0.0 , 0.0 , e   );
+
+  vec3 p_x0 = snoiseVec3( p - dx );
+  vec3 p_x1 = snoiseVec3( p + dx );
+  vec3 p_y0 = snoiseVec3( p - dy );
+  vec3 p_y1 = snoiseVec3( p + dy );
+  vec3 p_z0 = snoiseVec3( p - dz );
+  vec3 p_z1 = snoiseVec3( p + dz );
+
+  float x = p_y1.z - p_y0.z - p_z1.y + p_z0.y;
+  float y = p_z1.x - p_z0.x - p_x1.z + p_x0.z;
+  float z = p_x1.y - p_x0.y - p_y1.x + p_y0.x;
+
+  const float divisor = 1.0 / ( 2.0 * e );
+  return normalize( vec3( x , y , z ) * divisor );
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+
+  vec2 uv2 = uv + curlNoise(vec3(uv * 4. + uTime * 0.1, uTime * 0.1)).xy * uDt * 0.3;
+  uv += curlNoise(vec3(uv * 2. + uTime * 0.1, uTime * 0.1)).xy * uDt * 0.15;
+
+  vec3 mapColor = texture2D(uMap, uv).rgb;
+  vec3 mapColor2 = texture2D(uMap, uv2).rgb;
+
+  uv -= 0.5;
+  uv *= 2.0;
+  uv.x *= uResolution.x / uResolution.y;
+  vec2 pointer = uPointer;
+  pointer.x *= uResolution.x / uResolution.y;
+
+  float d = distance(uv, pointer);
+
+  vec3 color = mix(mapColor, mapColor2, 0.5);
+  color *= 1. - uDt * 2.0;
+  float speed = clamp(uSpeed * 2.0, 0.075, 0.25);
+  float t = smoothstep(speed, 0., d);
+  float t2 = smoothstep(speed, 0., d);
+  float t3 = smoothstep(speed, 0., d);
+  t2 = pow(t2, 10.0);
+  t3 = pow(t3, 4.0);
+  float scale = speed * 5.0;
+  t *= scale;
+  t2 *= scale;
+  t3 *= scale;
+
+  // Color interpolation: Custom Excalibur Brand Colors (Cyan/Red/White)
+  color = mix(color, vec3(1.0, 0.2, 0.267), t);       // Excalibur Red (rgb(255, 51, 68))
+  color = mix(color, vec3(0.133, 0.827, 0.933), t3);  // Excalibur Cyan (rgb(34, 211, 238))
+  color = mix(color, vec3(1.0), t2);                  // White Core
+
+  color = clamp(color, 0.0, 1.0);
+
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
 
 // Interfaces for our interactive elements
 interface Project {
@@ -38,12 +164,8 @@ export default function ExcaliburLanding() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // --- SUBTLE INTERACTIVE CURSOR REFS & STATE ---
-  const dotRef = useRef<HTMLDivElement>(null);
-  const ringRef = useRef<HTMLDivElement>(null);
-  const mousePos = useRef({ x: -100, y: -100 });
-  const ringPos = useRef({ x: -100, y: -100 });
-  const [isHovered, setIsHovered] = useState<boolean>(false);
+  // --- CANVAS INTERACTIVE CURSOR REFS ---
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // --- PORTFOLIO DATA (LEFT CANVASES) ---
   const projects: Project[] = [
@@ -121,63 +243,211 @@ Best regards,`;
     window.location.href = `mailto:snurmdev@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
-  // --- SUBTLE LERP CURSOR ANIMATION LOOP ---
+  // --- WEBGL SHADER FEEDBACK SMOKY TRAIL LOOP ---
   useEffect(() => {
     if (isMobile) return;
 
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const sizes = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+
+    // Scene
+    const scene = new THREE.Scene();
+
+    // Camera
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: false,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    renderer.setSize(sizes.width, sizes.height, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Fullscreen Triangle Geometry
+    const bgGeometry = new THREE.BufferGeometry();
+    bgGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(
+        new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]),
+        3
+      )
+    );
+    bgGeometry.setAttribute(
+      'uv',
+      new THREE.BufferAttribute(new Float32Array([0, 0, 2, 0, 0, 2]), 2)
+    );
+
+    // Render Targets for double buffering
+    let rtWidth = Math.floor(sizes.width * 0.25);
+    let rtHeight = Math.floor(sizes.height * 0.25);
+    
+    let rt1 = new THREE.WebGLRenderTarget(rtWidth, rtHeight, {
+      type: THREE.HalfFloatType,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+    let rt2 = rt1.clone();
+
+    let inputRT = rt1;
+    let outputRT = rt2;
+
+    // Trail shader material
+    const trailMaterial = new THREE.ShaderMaterial({
+      vertexShader: vertexShaderSource,
+      fragmentShader: fragmentShaderSource,
+      uniforms: {
+        uResolution: new THREE.Uniform(new THREE.Vector2(rtWidth, rtHeight)),
+        uMap: new THREE.Uniform(null),
+        uPointer: new THREE.Uniform(new THREE.Vector2(0, 0)),
+        uDt: new THREE.Uniform(0.0),
+        uSpeed: new THREE.Uniform(0.0),
+        uTime: new THREE.Uniform(0.0),
+      },
+      depthWrite: false,
+      depthTest: false,
+    });
+
+    const trailMesh = new THREE.Mesh(bgGeometry, trailMaterial);
+    const sceneTrail = new THREE.Scene();
+    sceneTrail.add(trailMesh);
+
+    // Output shader material (to render on screen with alpha cutout)
+    const bgMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uTrailMap;
+        varying vec2 vUv;
+        void main() {
+          vec3 color = texture2D(uTrailMap, vUv).rgb;
+          // Set alpha to 0 for black background so web content behind it is visible
+          float alpha = smoothstep(0.01, 0.15, length(color));
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      uniforms: {
+        uTrailMap: new THREE.Uniform(null),
+      },
+      depthWrite: false,
+      depthTest: false,
+      transparent: true,
+    });
+
+    const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+    scene.add(bgMesh);
+
+    // Track pointer coordinates
+    const pointer = new THREE.Vector2(0, 0);
+    let pointerMoved = false;
+
+    const handlePointerMove = (e: MouseEvent) => {
+      pointerMoved = true;
+      // Map screen space to WebGL coordinate space [-1, 1]
+      pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+
+    // Loop variables
+    const clock = new THREE.Clock();
+    let time = 0;
     let animationFrameId: number;
 
-    const handleMouseMove = (e: MouseEvent) => {
-      mousePos.current.x = e.clientX;
-      mousePos.current.y = e.clientY;
-      
-      // Instantly position core dot
-      if (dotRef.current) {
-        dotRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0) translate3d(-50%, -50%, 0)`;
-      }
-    };
+    const tick = () => {
+      const dt = Math.min(clock.getDelta(), 0.1);
+      time += dt;
 
-    const handleMouseOver = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-      
-      // Expand outer circle over interactive elements
-      if (
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.closest('button') || 
-        target.closest('a') ||
-        target.getAttribute('role') === 'button' ||
-        target.classList.contains('cursor-pointer')
-      ) {
-        setIsHovered(true);
-      } else {
-        setIsHovered(false);
-      }
-    };
+      trailMaterial.uniforms.uTime.value = time;
+      const prevPointer = trailMaterial.uniforms.uPointer.value;
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseover', handleMouseOver);
-
-    const updateRing = () => {
-      const ease = 0.15; // Smooth lerp delay interpolation factor
-      
-      ringPos.current.x += (mousePos.current.x - ringPos.current.x) * ease;
-      ringPos.current.y += (mousePos.current.y - ringPos.current.y) * ease;
-      
-      if (ringRef.current) {
-        ringRef.current.style.transform = `translate3d(${ringPos.current.x}px, ${ringPos.current.y}px, 0) translate3d(-50%, -50%, 0)`;
+      // Handle idle movement if pointer hasn't moved
+      if (!pointerMoved) {
+        pointer.x = 0.5 * Math.cos(time * 0.5) * Math.sin(time * 0.8);
+        pointer.y = 0.3 * Math.cos(time * 0.6);
       }
 
-      animationFrameId = requestAnimationFrame(updateRing);
+      // Calculate pointer speed
+      const dist = Math.sqrt((pointer.x - prevPointer.x) ** 2 + (pointer.y - prevPointer.y) ** 2);
+      trailMaterial.uniforms.uSpeed.value = THREE.MathUtils.lerp(
+        trailMaterial.uniforms.uSpeed.value,
+        dist,
+        dt * 3.0
+      );
+
+      // Lerp pointer position
+      trailMaterial.uniforms.uPointer.value.lerp(pointer, dt * 15.0);
+      trailMaterial.uniforms.uDt.value = dt;
+
+      // 1. Render trail material to output Render Target
+      renderer.setRenderTarget(outputRT);
+      renderer.render(sceneTrail, camera);
+
+      // 2. Render output to screen
+      renderer.setRenderTarget(null);
+      bgMaterial.uniforms.uTrailMap.value = outputRT.texture;
+      trailMaterial.uniforms.uMap.value = outputRT.texture;
+      
+      renderer.render(scene, camera);
+
+      // 3. Swap targets
+      const temp = inputRT;
+      inputRT = outputRT;
+      outputRT = temp;
+
+      animationFrameId = requestAnimationFrame(tick);
     };
 
-    animationFrameId = requestAnimationFrame(updateRing);
+    animationFrameId = requestAnimationFrame(tick);
+
+    // Handle Resize
+    const handleResize = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      if (sizes.width === width && sizes.height === height) return;
+
+      sizes.width = width;
+      sizes.height = height;
+
+      renderer.setSize(width, height, false);
+      
+      const newWidth = Math.floor(width * 0.25);
+      const newHeight = Math.floor(height * 0.25);
+      rt1.setSize(newWidth, newHeight);
+      rt2.setSize(newWidth, newHeight);
+      
+      trailMaterial.uniforms.uResolution.value.set(newWidth, newHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseover', handleMouseOver);
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      
+      // Clean up WebGL resources
+      bgGeometry.dispose();
+      trailMaterial.dispose();
+      bgMaterial.dispose();
+      rt1.dispose();
+      rt2.dispose();
+      renderer.dispose();
     };
   }, [isMobile]);
 
@@ -199,7 +469,7 @@ Best regards,`;
     <div 
       ref={containerRef} 
       onMouseMove={handleContainerMouseMove}
-      className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none swiss-grid md:cursor-none"
+      className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none swiss-grid"
     >
       
       {/* ────────────────────────────────────────────────────────
@@ -259,24 +529,12 @@ Best regards,`;
           }} 
         />
 
-        {/* Custom Subtle Interactive Cursor */}
+        {/* Interactive WebGL Shader Smoky Cursor Trail */}
         {!isMobile && (
-          <>
-            <div 
-              ref={dotRef}
-              className="fixed top-0 left-0 w-1.5 h-1.5 bg-white rounded-full pointer-events-none z-50 mix-blend-difference transition-transform duration-75 ease-out"
-              style={{ transform: 'translate3d(-100px, -100px, 0) translate3d(-50%, -50%, 0)' }}
-            />
-            <div 
-              ref={ringRef}
-              className={`fixed top-0 left-0 w-7 h-7 border rounded-full pointer-events-none z-50 transition-all duration-300 ease-out mix-blend-difference ${
-                isHovered 
-                  ? 'bg-white border-white scale-[1.6]' 
-                  : 'border-white/30 bg-transparent scale-100'
-              }`}
-              style={{ transform: 'translate3d(-100px, -100px, 0) translate3d(-50%, -50%, 0)' }}
-            />
-          </>
+          <canvas 
+            ref={canvasRef} 
+            className="absolute inset-0 pointer-events-none z-30 w-full h-full" 
+          />
         )}
 
         {/* Aesthetic Grid Ticker Pattern */}
