@@ -38,6 +38,10 @@ export default function ExcaliburLanding() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // --- CANVAS INTERACTIVE CURSOR TRAIL REFS ---
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pointerRef = useRef({ x: 0, y: 0, moved: false });
+
   // --- PORTFOLIO DATA (LEFT CANVASES) ---
   const projects: Project[] = [
     {
@@ -114,14 +118,126 @@ Best regards,`;
     window.location.href = `mailto:snurmdev@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
+  // --- CANVAS CURSOR TRAIL ANIMATION LOOP ---
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+
+    const params = {
+      pointsNumber: 45,       // Smooth and long trail
+      widthFactor: 0.35,      // Line thickness factor
+      spring: 0.4,           // Reactive tracking speed
+      friction: 0.6,         // Decay velocity
+    };
+
+    // Initialize trail history points centered on window viewport
+    const trail = Array.from({ length: params.pointsNumber }, () => ({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+      dx: 0,
+      dy: 0,
+    }));
+
+    const handleResize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+    
+    // Set initial size and bind window listener
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    const update = (t: number) => {
+      const pointer = pointerRef.current;
+      
+      // Gentle floating orbital path before first user interaction
+      if (!pointer.moved) {
+        pointer.x = (0.5 + 0.15 * Math.cos(0.002 * t) * Math.sin(0.005 * t)) * window.innerWidth;
+        pointer.y = (0.5 + 0.1 * Math.cos(0.005 * t) + 0.05 * Math.cos(0.01 * t)) * window.innerHeight;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Solve position vectors with spring-damper equations
+      trail.forEach((p, pIdx) => {
+        const prev = pIdx === 0 ? pointer : trail[pIdx - 1];
+        const spring = pIdx === 0 ? 0.45 * params.spring : params.spring;
+        p.dx += (prev.x - p.x) * spring;
+        p.dy += (prev.y - p.y) * spring;
+        p.dx *= params.friction;
+        p.dy *= params.friction;
+        p.x += p.dx;
+        p.y += p.dy;
+      });
+
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      // Draw segmented curve paths to fade width & opacity
+      for (let i = 1; i < trail.length - 1; i++) {
+        const xcPrev = 0.5 * (trail[i - 1].x + trail[i].x);
+        const ycPrev = 0.5 * (trail[i - 1].y + trail[i].y);
+        const xcNext = 0.5 * (trail[i].x + trail[i + 1].x);
+        const ycNext = 0.5 * (trail[i].y + trail[i + 1].y);
+
+        ctx.beginPath();
+        ctx.moveTo(xcPrev, ycPrev);
+        ctx.quadraticCurveTo(trail[i].x, trail[i].y, xcNext, ycNext);
+
+        const ratio = i / (trail.length - 1);
+        const opacity = (1 - ratio) * 0.8;
+        
+        // Brand color interpolation: Cyan (34, 211, 238) to Red (255, 51, 68)
+        const r = Math.round(34 + ratio * (255 - 34));
+        const g = Math.round(211 + ratio * (51 - 211));
+        const b = Math.round(238 + ratio * (68 - 238));
+
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        ctx.lineWidth = params.widthFactor * (params.pointsNumber - i);
+        ctx.stroke();
+      }
+
+      animationFrameId = requestAnimationFrame(update);
+    };
+
+    animationFrameId = requestAnimationFrame(update);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   // --- CURSOR TRACKING FOR PARALLAX/LIGHT-EFFECTS ---
   const handleContainerMouseMove = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    setMousePosition({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setMousePosition({ x, y });
+
+    pointerRef.current.x = x;
+    pointerRef.current.y = y;
+    pointerRef.current.moved = true;
+  };
+
+  const handleContainerTouchMove = (e: React.TouchEvent) => {
+    if (e.targetTouches.length > 0) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.targetTouches[0].clientX - rect.left;
+      const y = e.targetTouches[0].clientY - rect.top;
+
+      setMousePosition({ x, y });
+
+      pointerRef.current.x = x;
+      pointerRef.current.y = y;
+      pointerRef.current.moved = true;
+    }
   };
 
   // Helper variables for coordinates/distances relative to center
@@ -132,6 +248,7 @@ Best regards,`;
     <div 
       ref={containerRef} 
       onMouseMove={handleContainerMouseMove}
+      onTouchMove={handleContainerTouchMove}
       className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none swiss-grid"
     >
       
@@ -190,6 +307,12 @@ Best regards,`;
             backgroundImage: `url("${projects[activeProjectIndex].image}")`,
             transform: isMobile ? 'none' : `translate(${leftCenterDeltaX * 0.02}px, ${leftCenterDeltaY * 0.02}px) scale(1.1)`
           }} 
+        />
+
+        {/* Interactive Canvas Cursor Trail */}
+        <canvas 
+          ref={canvasRef} 
+          className="absolute inset-0 pointer-events-none z-30 w-full h-full" 
         />
 
         {/* Aesthetic Grid Ticker Pattern */}
@@ -269,29 +392,6 @@ Best regards,`;
             <span className="text-brand-red font-bold">{projects[activeProjectIndex].metadata.speed}</span>
           </div>
         </div>
-
-        {/* Floating Custom Reticle Overlay when hovered */}
-        {!isMobile && (
-          <div 
-            className="absolute pointer-events-none z-30 transition-transform duration-75 ease-out"
-            style={{ 
-              left: `${mousePosition.x - 24}px`, 
-              top: `${mousePosition.y - 24}px` 
-            }}
-          >
-            <div className="relative flex items-center justify-center">
-              <div className="w-12 h-12 border border-brand-red/40 rounded-full animate-ping absolute" />
-              <div className="w-6 h-6 border border-white/50 rounded-full flex items-center justify-center">
-                <div className="w-1 h-1 bg-brand-red rounded-full" />
-              </div>
-              <div className="absolute left-8 top-0 bg-black/90 border border-neutral-800 text-[8px] font-mono text-neutral-400 p-1 whitespace-nowrap leading-none flex flex-col space-y-0.5">
-                <span>X: {mousePosition.x}px</span>
-                <span>Y: {mousePosition.y}px</span>
-                <span>FOCUS: 0.95</span>
-              </div>
-            </div>
-          </div>
-        )}
 
       </div>
 
